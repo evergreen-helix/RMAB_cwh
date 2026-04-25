@@ -27,7 +27,7 @@ class SandboxEnv(Environment):
         self.sandbox_settings = SandboxSettings(
             environment="YourUsername/SandboxEnv",
             image="generalreasoning/python-ds:3.12-tools",
-            machine_size="0.5:1",
+            machine_size="1:2",
             block_network=False,
             bucket_config=SandboxBucketConfig(
                 mount_path="/tmp/sandbox/",

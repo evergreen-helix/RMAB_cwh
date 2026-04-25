@@ -76,7 +76,7 @@ class RMAB(Environment):
         if not secrets.get("api_key"):
             raise ValueError("OpenReward API key required (pass via secrets={'api_key': ...})")
         self.sandbox_settings = SandboxSettings(
-            environment="evergreen/RMAB",
+            environment="evergreen/RMAB_cwh",
             image="generalreasoning/python-ds:3.12-tools",
             machine_size="1:2",
             block_network=True,
@@ -97,7 +97,8 @@ class RMAB(Environment):
             f"On each turn, call `pull(machine_id=...)` to get a value. "
             f"You want to maximise the value you collect.\n"
             f"You have {self.config.num_pulls} many pulls in total you must complete.\n"
-            f"You also have a sandbox shell available for your own analysis."
+            f"You also have a sandbox shell available for your own analysis. "
+            f"Files you write persist across calls, but each shell invocation starts in a fresh cwd — use absolute paths."
         ))]
 
     @tool
