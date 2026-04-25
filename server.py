@@ -72,7 +72,7 @@ class RMAB(Environment):
             f"On each turn, call `pull(machine_id=...)` to get a value. "
             f"You want to maximise the value you collect.\n"
             f"You have {self.config.num_pulls} many pulls in total you must complete.\n"
-            f"You also have a sandbox shell available for your own analysis. "
+            f"You also have a sandbox shell available for your own analysis, it has python tools and you should use them."
             f"Files you write persist across calls, but each shell invocation starts in a fresh cwd — use absolute paths."
         ))]
 
@@ -145,7 +145,7 @@ class RMAB(Environment):
                 "d":       [0.3, -0.2, 0.1, -0.1, 0.2],
                 "sigma_a": [0.3, 0.4, 0.3, 0.5, 0.4],
                 "sigma_d": [0.0, 0.0, 0.0, 0.0, 0.0],
-                "sample_seed": 42,
+                "sample_seed": 2,
             }]
         raise ValueError(f"Unknown split: {split}")
 

@@ -3,3 +3,4 @@ ignore
 cwh_bench
 __pycache__
 sketches
+logs
