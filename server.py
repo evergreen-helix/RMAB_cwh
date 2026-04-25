@@ -1,56 +1,26 @@
-
 from openreward import AsyncOpenReward, SandboxSettings
 from openreward.environments import (
     Environment, JSONObject, Server, Split,
     TextBlock, ToolOutput, tool,
 )
 from openreward.toolsets import ClaudeCodeToolset
-import numpy as np
 from pydantic import BaseModel
 
-
-class RMAB_model:
-    def __init__(self, model_params={}):
-        self.num_machines = np.array(model_params["num_machines"])
-        self.num_pulls = np.array(model_params["num_pulls"])
-        self.means_base = np.array(model_params["means"])
-        self.sds_base = np.array(model_params["sds"])
-        self.means = np.array(model_params["means"])
-        self.sds = np.array(model_params["sds"])
-        self.mean_drift_rates = np.array(model_params["mean_drift_rates"])
-        self.sd_drift_rates = np.array(model_params["sd_drift_rates"])
-        self.done_pulls = 0
-
-    def get_sample(self, machine_index: int):
-        sample = np.random.normal(
-            loc=self.means[machine_index],
-            scale=self.sds[machine_index],
-            size=1,
-        )
-        self._update_machines()
-        return float(sample[0])
-
-    def _update_machines(self):
-        self.done_pulls += 1
-        self.means = self.means_base + (self.done_pulls * self.mean_drift_rates)
-        self.sds = self.sds_base + (self.done_pulls * self.sd_drift_rates)
-        return None
-
-    def _get_means(self):
-        return self.means
-
-    def _get_sds(self):
-        return self.sds
+from bandit import Bandit
 
 
 class RMABTaskSpec(BaseModel):
     task_id: str
     num_machines: int
     num_pulls: int
-    means: list[float]
-    sds: list[float]
-    mean_drift_rates: list[float]
-    sd_drift_rates: list[float]
+    a: list[float]
+    b: list[float]
+    c: list[float]
+    phi: list[float]
+    d: list[float]
+    sigma_a: list[float]
+    sigma_d: list[float]
+    sample_seed: int = 0
 
 
 class PullParams(BaseModel, extra="forbid"):
@@ -63,14 +33,19 @@ class RMAB(Environment):
     def __init__(self, task_spec: JSONObject = {}, secrets: dict[str, str] = {}):
         super().__init__(task_spec)
         self.config = RMABTaskSpec.model_validate(task_spec)
-        self.model = RMAB_model({
-            "num_machines": self.config.num_machines,
-            "num_pulls": self.config.num_pulls,
-            "means": self.config.means,
-            "sds": self.config.sds,
-            "mean_drift_rates": self.config.mean_drift_rates,
-            "sd_drift_rates": self.config.sd_drift_rates,
-        })
+        self.bandit = Bandit(
+            n_machines=self.config.num_machines,
+            n_pulls=self.config.num_pulls,
+            a=self.config.a,
+            b=self.config.b,
+            c=self.config.c,
+            phi=self.config.phi,
+            d=self.config.d,
+            sigma_a=self.config.sigma_a,
+            sigma_d=self.config.sigma_d,
+            sample_seed=self.config.sample_seed,
+        )
+        self.t = 0
         self.cumulative_reward = 0.0
 
         if not secrets.get("api_key"):
@@ -113,9 +88,10 @@ class RMAB(Environment):
                 finished=False,
             )
 
-        sample = self.model.get_sample(i)
+        sample = self.bandit.sample(i, self.t)
+        self.t += 1
         self.cumulative_reward += sample
-        terminal = self.model.done_pulls >= self.config.num_pulls
+        terminal = self.t >= self.config.num_pulls
 
         text = f"machine {i} → {sample:.4f}"
         if terminal:
@@ -138,25 +114,38 @@ class RMAB(Environment):
 
     @classmethod
     def list_tasks(cls, split: str) -> list[JSONObject]:
+        import math
+        T_train, T_test = 50, 800
+        c_train = [2 * math.pi * k / T_train for k in (2, 2.5, 3)]
+        c_test = [2 * math.pi * k / T_test for k in (2, 2.3, 2.6, 2.9, 3)]
+
         if split == "train":
             return [{
                 "task_id": "train-0",
                 "num_machines": 3,
-                "num_pulls": 50,
-                "means": [0.0, 1.0, 2.0],
-                "sds": [1.0, 1.0, 1.0],
-                "mean_drift_rates": [0.1, -0.1, 0.3],
-                "sd_drift_rates": [0.1, 0.5, 1.0],
+                "num_pulls": T_train,
+                "a":       [0.0, 0.5, 1.0],
+                "b":       [1.0, 0.8, 0.5],
+                "c":       c_train,
+                "phi":     [0.0, math.pi / 2, math.pi],
+                "d":       [0.5, -0.3, 0.0],
+                "sigma_a": [0.5, 0.5, 0.5],
+                "sigma_d": [0.0, 0.0, 0.0],
+                "sample_seed": 1,
             }]
         if split == "test":
             return [{
                 "task_id": "test-0",
                 "num_machines": 5,
-                "num_pulls": 800,
-                "means": [0.0, 0.5, 1.0, 1.5, 2.0],
-                "sds": [0.5, 0.5, 0.5, 0.5, 0.5],
-                "mean_drift_rates": [0.001, 0.002, -0.001, 0.003, -0.002],
-                "sd_drift_rates": [0.0, 0.0, 0.0, 0.0, 0.0],
+                "num_pulls": T_test,
+                "a":       [0.0, 0.3, 0.6, 0.9, 1.2],
+                "b":       [1.0, 1.2, 0.8, 1.0, 0.6],
+                "c":       c_test,
+                "phi":     [0.0, 0.7, 1.4, 2.1, 2.8],
+                "d":       [0.3, -0.2, 0.1, -0.1, 0.2],
+                "sigma_a": [0.3, 0.4, 0.3, 0.5, 0.4],
+                "sigma_d": [0.0, 0.0, 0.0, 0.0, 0.0],
+                "sample_seed": 42,
             }]
         raise ValueError(f"Unknown split: {split}")
 

@@ -1,6 +1,7 @@
 """Local smoke test: drive the RMAB env in-process with an OpenAI tool-calling loop."""
 import asyncio
 import json
+import math
 import os
 
 from dotenv import load_dotenv
@@ -12,15 +13,19 @@ load_dotenv()
 
 MODEL = "gpt-4o-mini"
 
-
+T = 200
 TASK_SPEC = {
     "task_id": "smoke-1",
     "num_machines": 5,
-    "num_pulls": 200,
-    "means":             [0.0, 0.4, 0.8, 1.2, 1.6],
-    "sds":               [1.5, 1.5, 1.5, 1.5, 1.5],
-    "mean_drift_rates":  [0.015, 0.005, -0.005, -0.01, -0.012],
-    "sd_drift_rates":    [0.0, 0.0, 0.0, 0.0, 0.0],
+    "num_pulls": T,
+    "a":       [0.5, 0.7, 0.9, 1.1, 1.3],
+    "b":       [1.5, 1.5, 1.5, 1.5, 1.5],
+    "c":       [2 * math.pi * k / T for k in (2, 2.3, 2.6, 2.9, 3)],
+    "phi":     [0.0, 0.7, 1.4, 2.1, 2.8],
+    "d":       [0.0, 0.0, 0.0, 0.0, 0.0],
+    "sigma_a": [1.5, 1.5, 1.5, 1.5, 1.5],
+    "sigma_d": [0.0, 0.0, 0.0, 0.0, 0.0],
+    "sample_seed": 42,
 }
 
 PULL_TOOL_SPEC = {
