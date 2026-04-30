@@ -42,7 +42,7 @@ class Logger:
         self.f.close()
         self.csv_f.close()
 
-MODEL = "gpt-4o"
+MODEL = "gpt-5.5"
 
 PULL_TOOL_SPEC = {
     "type": "function",
